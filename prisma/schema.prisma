@@ -11,3 +11,76 @@ generator client {
 datasource db {
   provider = "postgresql"
 }
+enum OrderStatus {
+  NEW
+  CONFIRMED
+  PROCESSING
+  COMPLETED
+  CANCELLED
+}
+
+enum PaymentStatus {
+  UNPAID
+  PAID
+  FAILED
+  REFUNDED
+}
+
+model Admin {
+  id           String   @id @default(cuid())
+  name         String
+  email        String   @unique
+  passwordHash String
+  createdAt    DateTime @default(now())
+}
+model Service {
+  id          String      @id @default(cuid())
+  name        String
+  slug        String      @unique
+  description String
+  price       Int         // "Starting from", Taka-y
+  images      String[]
+  isActive    Boolean     @default(true)
+  createdAt   DateTime    @default(now())
+  items       OrderItem[]
+}
+
+model Order {
+  id            String        @id @default(cuid())
+  orderNumber   String        @unique
+  customerName  String
+  email         String
+  phone         String
+  businessName  String?
+  brief         String        // Customer ki chay, project-er details
+  preferredDate DateTime?
+  totalAmount   Int           // Estimated, starting price-er hishab
+  status        OrderStatus   @default(NEW)
+  paymentStatus PaymentStatus @default(UNPAID)
+  adminNotes    String?
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  items         OrderItem[]
+
+  @@index([status])
+  @@index([createdAt])
+}
+
+model OrderItem {
+  id        String  @id @default(cuid())
+  orderId   String
+  serviceId String
+  quantity  Int     @default(1)
+  price     Int
+  order     Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  service   Service @relation(fields: [serviceId], references: [id])
+}
+
+model ContactMessage {
+  id        String   @id @default(cuid())
+  name      String
+  email     String
+  message   String
+  isRead    Boolean  @default(false)
+  createdAt DateTime @default(now())
+}

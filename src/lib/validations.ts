@@ -35,3 +35,15 @@ export const orderSchema = z.object({
 });
 
 export type OrderInput = z.infer<typeof orderSchema>;
+// Zod error gulo ke { fieldName: message } e convert kore
+export function toFieldErrors(
+  issues: { path: PropertyKey[]; message: string }[]
+): Record<string, string> {
+  const out: Record<string, string> = {};
+  for (const i of issues) {
+    const first = i.path[0];
+    const key = first === "items" ? "serviceId" : String(first ?? "form");
+    if (!out[key]) out[key] = i.message;
+  }
+  return out;
+}

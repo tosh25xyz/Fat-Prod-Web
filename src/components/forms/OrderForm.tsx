@@ -1,11 +1,12 @@
 "use client";
 
-import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Select } from "@/components/ui/Select";
 import { Textarea } from "@/components/ui/Textarea";
+import { orderSchema, toFieldErrors } from "@/lib/validations";
 
 type ServiceOption = { id: string; name: string; price: number };
 
@@ -16,9 +17,9 @@ type Props = {
 
 type Errors = Record<string, string>;
 
-const BD_PHONE = /^(?:\+?88)?01[3-9]\d{8}$/;
-
 export function OrderForm({ services, defaultServiceId }: Props) {
+  const router = useRouter();
+  const submitting = useRef(false); // double click guard (state er cheye fast)
   const [values, setValues] = useState({
     serviceId: defaultServiceId ?? "",
     customerName: "",
@@ -31,91 +32,101 @@ export function OrderForm({ services, defaultServiceId }: Props) {
   const [errors, setErrors] = useState<Errors>({});
   const [formError, setFormError] = useState("");
   const [loading, setLoading] = useState(false);
-  const [orderNumber, setOrderNumber] = useState<string | null>(null);
 
   function set(name: keyof typeof values) {
     return (
       e: React.ChangeEvent<
         HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement
       >
-    ) => setValues((v) => ({ ...v, [name]: e.target.value }));
-  }
-
-  function validate(): Errors {
-    const e: Errors = {};
-    if (!values.serviceId) e.serviceId = "Select a service";
-    if (values.customerName.trim().length < 2) e.customerName = "Enter your name";
-    if (!BD_PHONE.test(values.phone.trim()))
-      e.phone = "Enter a valid BD phone number (01XXXXXXXXX)";
-    if (!/^\S+@\S+\.\S+$/.test(values.email.trim()))
-      e.email = "Enter a valid email";
-    if (values.brief.trim().length < 10)
-      e.brief = "Please write at least 10 characters";
-    return e;
+    ) => {
+      setValues((v) => ({ ...v, [name]: e.target.value }));
+      // user type korle oi field er error shoriye dao
+      setErrors((prev) => {
+        if (!prev[name]) return prev;
+        const next = { ...prev };
+        delete next[name];
+        return next;
+      });
+    };
   }
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
+    if (submitting.current) return;
+
     setFormError("");
 
-    const clientErrors = validate();
-    setErrors(clientErrors);
-    if (Object.keys(clientErrors).length > 0) return;
+    const payload = {
+      customerName: values.customerName,
+      email: values.email,
+      phone: values.phone,
+      businessName: values.businessName,
+      brief: values.brief,
+      preferredDate: values.preferredDate,
+      items: [{ serviceId: values.serviceId, quantity: 1 }],
+    };
 
+    // 1. Client validation (server er shoman schema)
+    const parsed = orderSchema.safeParse(payload);
+    if (!parsed.success) {
+      setErrors(toFieldErrors(parsed.error.issues));
+      return;
+    }
+    setErrors({});
+
+    submitting.current = true;
     setLoading(true);
+
     try {
       const res = await fetch("/api/orders", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          customerName: values.customerName,
-          email: values.email,
-          phone: values.phone,
-          businessName: values.businessName,
-          brief: values.brief,
-          preferredDate: values.preferredDate,
-          items: [{ serviceId: values.serviceId, quantity: 1 }],
-        }),
+        body: JSON.stringify(payload),
       });
-      const data = await res.json();
 
-      if (res.status === 201) {
-        setOrderNumber(data.order.orderNumber);
+      let data: {
+  order?: { orderNumber?: string };
+  details?: { field: string; message: string }[];
+  error?: string;
+} | null = null;
+      try {
+        data = await res.json();
+      } catch {
+        /* json na hole data null thakbe */
+      }
+
+      // 2. Success: redirect (loading true thakbe, jate abar na chape)
+      if (res.status === 201 && data?.order?.orderNumber) {
+        router.push(
+          `/order/success?order=${encodeURIComponent(data.order.orderNumber)}`
+        );
         return;
       }
 
-      if (res.status === 400 && Array.isArray(data.details)) {
+      // 3. Server validation error
+      if (res.status === 400 && Array.isArray(data?.details)) {
         const serverErrors: Errors = {};
         for (const d of data.details as { field: string; message: string }[]) {
           const key = d.field.startsWith("items") ? "serviceId" : d.field;
-          serverErrors[key] = d.message;
+          if (!serverErrors[key]) serverErrors[key] = d.message;
         }
         setErrors(serverErrors);
-        return;
+      } else if (res.status === 400 && data?.error) {
+        setFormError(data.error);
+      } else {
+        // 4. 500 ba onno error
+        setFormError(
+          "Something went wrong on our side. Please try again in a moment."
+        );
       }
-
-      setFormError(data.error ?? "Something went wrong. Please try again.");
     } catch {
-      setFormError("Network error. Please check your connection and try again.");
-    } finally {
-      setLoading(false);
+      setFormError(
+        "Network error. Please check your internet connection and try again."
+      );
     }
-  }
 
-  if (orderNumber) {
-    return (
-      <div className="rounded-2xl border border-navy/10 bg-white p-8 text-center">
-        <h2 className="text-2xl font-bold">Request received</h2>
-        <p className="mt-2 text-navy/70">
-          Thank you. We will contact you soon to discuss your project.
-        </p>
-        <p className="mt-6 text-sm text-navy/60">Your order number</p>
-        <p className="text-xl font-semibold text-brand">{orderNumber}</p>
-        <Link href="/" className="mt-8 inline-block">
-          <Button variant="outline">Back to home</Button>
-        </Link>
-      </div>
-    );
+    submitting.current = false;
+    setLoading(false);
   }
 
   return (
@@ -124,12 +135,22 @@ export function OrderForm({ services, defaultServiceId }: Props) {
       noValidate
       className="space-y-5 rounded-2xl border border-navy/10 bg-white p-6 sm:p-8"
     >
+      {formError && (
+        <p
+          role="alert"
+          className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700"
+        >
+          {formError}
+        </p>
+      )}
+
       <Select
         label="Service"
         name="serviceId"
         value={values.serviceId}
         onChange={set("serviceId")}
         error={errors.serviceId}
+        disabled={loading}
       >
         <option value="">Select a service</option>
         {services.map((s) => (
@@ -147,6 +168,7 @@ export function OrderForm({ services, defaultServiceId }: Props) {
           onChange={set("customerName")}
           error={errors.customerName}
           autoComplete="name"
+          disabled={loading}
         />
         <Input
           label="Phone"
@@ -157,6 +179,7 @@ export function OrderForm({ services, defaultServiceId }: Props) {
           onChange={set("phone")}
           error={errors.phone}
           autoComplete="tel"
+          disabled={loading}
         />
       </div>
 
@@ -168,6 +191,7 @@ export function OrderForm({ services, defaultServiceId }: Props) {
         onChange={set("email")}
         error={errors.email}
         autoComplete="email"
+        disabled={loading}
       />
 
       <Input
@@ -176,6 +200,7 @@ export function OrderForm({ services, defaultServiceId }: Props) {
         value={values.businessName}
         onChange={set("businessName")}
         error={errors.businessName}
+        disabled={loading}
       />
 
       <Textarea
@@ -185,6 +210,7 @@ export function OrderForm({ services, defaultServiceId }: Props) {
         value={values.brief}
         onChange={set("brief")}
         error={errors.brief}
+        disabled={loading}
       />
 
       <Input
@@ -194,13 +220,8 @@ export function OrderForm({ services, defaultServiceId }: Props) {
         value={values.preferredDate}
         onChange={set("preferredDate")}
         error={errors.preferredDate}
+        disabled={loading}
       />
-
-      {formError && (
-        <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">
-          {formError}
-        </p>
-      )}
 
       <Button type="submit" size="lg" className="w-full" disabled={loading}>
         {loading ? "Sending..." : "Send request"}

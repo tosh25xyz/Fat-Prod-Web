@@ -4,7 +4,7 @@ import { Card, CardTitle } from "@/components/ui/card";
 
 export default function Home() {
   return (
-    <main className="mx-auto max-w-md space-y-6 p-8">
+    <div className="mx-auto max-w-md space-y-6 p-8">
       <h1 className="text-3xl font-bold">Design system test</h1>
 
       <Card className="space-y-4">
@@ -18,6 +18,6 @@ export default function Home() {
         </div>
         <Button disabled>Disabled</Button>
       </Card>
-    </main>
+    </div>
   );
 }

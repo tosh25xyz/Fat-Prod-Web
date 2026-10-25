@@ -18,3 +18,10 @@ export const footerServices = [
   "Business Promotion",
   "Ad Campaign and Reach",
 ];
+export const social = [
+  { label: "Facebook", href: "https://facebook.com/yourpage" },
+  { label: "Instagram", href: "https://instagram.com/yourpage" },
+  { label: "YouTube", href: "https://youtube.com/@yourchannel" },
+];
+
+export const address = "Dhaka, Bangladesh";

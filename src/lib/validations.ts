@@ -47,3 +47,14 @@ export function toFieldErrors(
   }
   return out;
 }
+export const contactSchema = z.object({
+  name: z.string().trim().min(2, "Enter your name").max(100),
+  email: z.string().trim().email("Enter a valid email"),
+  message: z
+    .string()
+    .trim()
+    .min(10, "Please write at least 10 characters")
+    .max(2000, "Message is too long (max 2000 characters)"),
+});
+
+export type ContactInput = z.infer<typeof contactSchema>;

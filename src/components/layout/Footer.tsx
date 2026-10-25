@@ -1,5 +1,5 @@
 import Link from "next/link";
-import { site, navLinks, footerServices } from "@/lib/site";
+import { site, navLinks } from "@/lib/site";
 
 async function CurrentYear() {
   "use cache";
@@ -9,8 +9,8 @@ async function CurrentYear() {
 export function Footer() {
   return (
     <footer className="bg-navy text-white">
-      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-4">
-        <div className="md:col-span-1">
+      <div className="mx-auto grid max-w-6xl gap-10 px-4 py-12 sm:px-6 md:grid-cols-3">
+        <div>
           <p className="text-xl font-bold">
             {site.name}
             <span className="text-brand">.</span>
@@ -20,7 +20,7 @@ export function Footer() {
 
         <div>
           <h4 className="text-sm font-semibold uppercase tracking-wide text-white/50">
-            Menu
+            Quick Links
           </h4>
           <ul className="mt-3 space-y-2 text-sm">
             {navLinks.map((l) => (
@@ -30,17 +30,11 @@ export function Footer() {
                 </Link>
               </li>
             ))}
-          </ul>
-        </div>
-
-        <div>
-          <h4 className="text-sm font-semibold uppercase tracking-wide text-white/50">
-            Services
-          </h4>
-          <ul className="mt-3 space-y-2 text-sm text-white/80">
-            {footerServices.map((s) => (
-              <li key={s}>{s}</li>
-            ))}
+            <li>
+              <Link href="/order" className="text-white/80 hover:text-white">
+                Order Now
+              </Link>
+            </li>
           </ul>
         </div>
 
